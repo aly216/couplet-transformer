@@ -1,0 +1,12 @@
+# 模型权重（约 1.2GB，训练后本地生成）
+checkpoints/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 训练集（约 59MB，从数据源下载，见 README）
+data/train/
+
+# 个人截图
+屏幕截图*.png
