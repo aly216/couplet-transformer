@@ -71,7 +71,7 @@ def train_iters(src, tgt, src_mask, tgt_mask, model, optimizer, scheduler, crite
 
 
 def train_transformer():
-    # —— 数据（全量） ——
+    # 数据（全量）
     word2idx, idx2word, pad_idx, unk_idx = build_vocab(vocab_path)
     train_pairs = read_pairs(train_in_path, train_out_path)
     print(f'设备：{device}')
@@ -79,14 +79,14 @@ def train_transformer():
     my_dataloader = get_dataloader(train_pairs, word2idx, unk_idx, pad_idx,
                                    batch_size, shuffle=True)
 
-    # —— 模型 ——
+    # 模型
     model = make_model().to(device)
 
-    # —— 优化器 + Noam 调度（原版配方） ——
+    # 优化器 + Noam 调度（原版配方）
     optimizer = optim.Adam(model.parameters(), betas=(0.9, 0.98), eps=1e-9)
     scheduler = NoamOpt(D_MODEL, warmup, optimizer)
 
-    # —— 损失：标签平滑（创新点） ——
+    # 损失：标签平滑（创新点）
     criterion = nn.CrossEntropyLoss(ignore_index=pad_idx, label_smoothing=0.1)
 
     os.makedirs(save_dir, exist_ok=True)

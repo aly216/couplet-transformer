@@ -129,7 +129,7 @@ def get_dataloader(pairs, word2idx, unk_idx, pad_idx, batch_size,
 
 
 if __name__ == '__main__':
-    # —— 冒烟测试：建词表、读数据、取一个 batch，看形状与解码结果 ——
+    # 冒烟测试：建词表、读数据、取一个 batch，看形状与解码结果
     word2idx, idx2word, pad_idx, unk_idx = build_vocab('data/vocabs')
     print(f'词表大小 = {len(word2idx)}，<pad> = {pad_idx}，<unk> = {unk_idx}')
 

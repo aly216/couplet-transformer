@@ -18,7 +18,7 @@ class Decoder(nn.Module):
         """
         :param x: 输入序列(一开经过位置处理的Q)
         :param encoder_output: 编码器输出
-        :param src_mask: 源序列掩码,用于编码器——解码器注意力机制
+        :param src_mask: 源序列掩码,用于编码器-解码器注意力机制
         :param tgt_mask: 目标序列掩码,用于自注意力机制
         """
         for layer in self.layers:

@@ -11,7 +11,7 @@ from decoder_layer import DecoderLayer
 from decoder import Decoder
 from output_part import Generator
 
-# —— 超参数：统一集中管理，避免魔法数字散落各处 ——
+# 超参数：统一集中管理，避免魔法数字散落各处
 VOCAB_SIZE = 9132    # 词表大小（data/vocabs 9130 词 + <pad> + <unk>）
 D_MODEL = 512        # 词嵌入 / 模型维度
 D_FF = 2048          # 前馈网络中间层维度
@@ -25,7 +25,7 @@ class EncoderDecoder(nn.Module):
     def __init__(self, src_embed, encoder, tgt_embed, decoder, generator):
         super().__init__()
         # 注意：src_embed / tgt_embed 是 nn.Sequential(Embeddings, PositionalEncoding)，
-        # 已经同时包含「词嵌入 + 位置编码」两步，并不是单纯的嵌入层
+        # 已经同时包含“词嵌入 + 位置编码”两步，并不是单纯的嵌入层
         self.src_embed = src_embed
         self.encoder = encoder
         self.tgt_embed = tgt_embed
@@ -48,7 +48,7 @@ class EncoderDecoder(nn.Module):
 
 
 def make_model():
-    # ———————————— 编码器 ————————————
+    # 编码器
     source_embed = Embeddings(vocab_size=VOCAB_SIZE, d_model=D_MODEL)
     source_position = PositionalEncoding(d_model=D_MODEL, max_len=MAX_LEN)
     self_attn = MultiHeadAttention(D_MODEL, N_HEADS)
@@ -57,7 +57,7 @@ def make_model():
                                  feed_forward=ff, dropout_p=DROPOUT)
     encoder = Encoder(encoder_layer, N=N_LAYERS)
 
-    # ———————————— 解码器 ————————————
+    # 解码器
     target_embed = copy.deepcopy(source_embed)
     target_position = copy.deepcopy(source_position)
     self_attn1 = copy.deepcopy(self_attn)
@@ -67,10 +67,10 @@ def make_model():
                                  feed_forward=feed_forward, dropout_p=DROPOUT)
     decoder = Decoder(decoder_layer, N=N_LAYERS)
 
-    # ———————————— 生成器 ————————————
+    # 生成器
     generator = Generator(d_model=D_MODEL, vocab_size=VOCAB_SIZE)
 
-    # ———————————— 组装完整模型 ————————————
+    # 组装完整模型
     model = EncoderDecoder(
         nn.Sequential(source_embed, source_position),   # src_embed：词嵌入 + 位置编码
         encoder,

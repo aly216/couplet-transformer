@@ -113,7 +113,7 @@ def greedy_decode(model, src, src_mask, max_len, device, no_repeat_ngram=2):
         out = model.decode(ys, memory, src_mask, tgt_mask)
         logits = model.generator(out[:, -1])       # (batch, vocab) 原始 logits
 
-        # —— 简单重复抑制：对每个未结束样本，屏蔽会复现已有 n-gram 的候选字 ——
+        # 简单重复抑制：对每个未结束样本，屏蔽会复现已有 n-gram 的候选字
         if no_repeat_ngram > 0:
             n = no_repeat_ngram
             for b in range(batch):
@@ -186,7 +186,7 @@ def evaluate():
                 refs.append(test_pairs[i + j][1][1:-1])           # 参考下联（去 <s> </s>）
                 src_lens.append(len(test_pairs[i + j][0]) - 2)    # 上联字数
 
-    # —— 指标 ——
+    # 指标
     bleu = corpus_bleu(refs, hyps)
     chrf = corpus_chrf(refs, hyps)
     align = sum(1 for s, h in zip(src_lens, hyps) if len(h) == s) / len(hyps)
@@ -205,7 +205,7 @@ def evaluate():
         print(f'  {k:>7}: {bleu[k] * 100:.2f}')
     print(f'  chrF    : {chrf * 100:.2f}')
 
-    # —— 抽样展示 ——
+    # 抽样展示
     print('\n' + '=' * 60)
     print(f'抽样展示（随机 {num_show} 条）')
     print('=' * 60)
