@@ -1,44 +1,64 @@
-# 中文对联生成：从零实现 Transformer
+# 从零实现 Transformer（中文对联生成）
 
-Transformer 序列到序列模型，完成中文对联的「上联 → 下联」生成任务。不依赖 HuggingFace 等高层封装，多头注意力、位置编码、编码器/解码器、Noam 学习率调度等核心组件全部自行实现。
+从零手写《Attention Is All You Need》的 Transformer 序列到序列模型，不依赖 HuggingFace 等高层封装。多头注意力、位置编码、编码器 / 解码器、掩码、LayerNorm、残差连接、Noam 学习率调度全部自行实现，并在「上联 → 下联」对联生成任务上验证模型能正常工作。
 
-## 动机
+## 想证明什么
 
-对联生成是一个「一对多」的开放文本生成任务：同一个上联存在大量合格的下联。选择它作为练手项目，是因为它同时覆盖了 Transformer 的完整训练 / 解码链路，又能暴露 BLEU 等参考式指标在开放生成任务上的失效问题——后者是通用文本生成评测中的常见误区，也是本项目想讲清楚的一个点。
+这个项目的主线是**完整复现 Transformer 并理解每个组件的原理**，对联是验证模型能正常工作的任务载体。重点在架构实现，不在任务本身。
 
-## 模型结构
+## 整体结构
 
-| 组件 | 配置 |
+标准 Encoder-Decoder：编码器 6 层、解码器 6 层、8 头注意力、d_model=512、d_ff=2048。
+
+```
+输入 → 词嵌入(×√d_model) + 位置编码
+     → Encoder ×6（自注意力 + 前馈，各带残差 + LayerNorm）
+     → Decoder ×6（因果自注意力 + 交叉注意力 + 前馈）
+     → 线性层 → 词表 logits
+```
+
+## 核心组件实现
+
+### 多头注意力
+
+- 4 个线性层做 Q / K / V / O 投影，8 个头，每头 d_k = 512 / 8 = 64；
+- `scores = QKᵀ / √d_k`，`masked_fill` 后 softmax、dropout，再乘 V；
+- 流程：拆头 → 注意力 → 拼头 → 输出投影。
+
+### 位置编码
+
+- 正弦 sin/cos，用 `register_buffer` 保存（不参与梯度）；
+- 选 sin/cos 而非可学习参数：可外推到训练未见过的序列长度，且相对位置可由线性关系表达。
+
+### 前馈网络
+
+- `Linear(512 → 2048) → ReLU → Dropout → Linear(2048 → 512)`。
+
+### 残差连接 + LayerNorm（pre-norm）
+
+- **采用 pre-norm**（先 LayerNorm 再子层）：`x + dropout(sublayer(norm(x)))`；
+- 相比原论文的 post-norm，pre-norm 梯度更稳定、更好训练，是 GPT 等现代模型的做法；
+- LayerNorm 自实现，`std` 用 `unbiased=False`（除以 N 而非 N-1）。
+
+## 关键设计细节（为什么这么写）
+
+| 细节 | 原因 |
 |---|---|
-| 词表 | 9132（9130 字 + `<pad>` + `<unk>`） |
-| d_model / d_ff | 512 / 2048 |
-| 注意力头 / 层数 | 8 / 6（encoder、decoder 各 6 层） |
-| dropout | 0.1 |
-| 位置编码 | 正弦 sin/cos，`register_buffer` 保存 |
-
-关键实现细节：
-
-- **pre-norm**：LayerNorm 在子层之前（现代 Transformer 默认，比原论文 post-norm 训练更稳定）；
-- **缩放**：注意力得分 `1/√d_k`，词嵌入 `×√d_model`；
-- **掩码**：encoder 用 padding mask；decoder 用因果 mask + padding mask；cross-attention 用 src mask；
-- **LayerNorm** 自实现，`std` 用 `unbiased=False`（除以 N，而非 N-1）。
-
-## 数据
-
-- 训练集 **770,491** 对 / 测试集 **4,000** 对（标准中文对联数据集）；
-- 字符级建模：每个汉字一个 token。
-
-> 训练集（`data/train/`，约 59MB）未包含在仓库中。请从 [couplet-dataset](https://github.com/wb14123/couplet-dataset) 的 Releases 下载 `train/in.txt`、`train/out.txt` 放入 `data/train/`。仓库已包含 `data/vocabs` 与 `data/test/`，可直接评测。
+| 注意力除以 √d_k | 防止点积随维度增大而增大，避免 softmax 进入饱和区、梯度消失 |
+| 词嵌入 ×√d_model | 让嵌入与位置编码量级一致，相加后信息不被淹没 |
+| 三种掩码 | encoder 用 padding mask；decoder 自注意力用因果 mask + padding mask；交叉注意力用 src mask |
+| 因果掩码 | 下三角矩阵，保证预测第 t 个词时看不到 t 之后的词（自回归） |
+| 标签平滑 0.1 | 防止模型对正确答案过度自信，缓解过拟合 |
 
 ## 训练
 
 - Adam(β=0.9, 0.98) + **Noam 学习率调度**（warmup=4000，先线性上升后按 `step^-0.5` 衰减）；
-- **标签平滑 0.1**、梯度裁剪 1.0、teacher forcing；
-- 5 个 epoch，batch 64（RTX 4060 8GB）。
+- 梯度裁剪 1.0、teacher forcing、dropout 0.1；
+- 词表 9132，5 个 epoch，batch 64（RTX 4060 8GB）。
 
-## 评测与结果
+## 任务与评测
 
-评测脚本用**贪心解码 + 重复抑制**（`no_repeat_ngram=2`，屏蔽会复现已有 2-gram 的候选字，消除 `月月月月` 这类自增强退化循环，同时保留叠词只出现一次）。
+中文对联生成（字符级建模），训练集 77 万对、测试集 4000 对。
 
 | 指标 | 值 |
 |---|---|
@@ -47,29 +67,13 @@ Transformer 序列到序列模型，完成中文对联的「上联 → 下联」
 | BLEU-1 / 2 / 3 / 4 | 15.44 / 6.01 / 2.78 / 1.48 |
 | chrF | 3.12 |
 
-测试集随机抽样示例：
+> 对联是「一对多」开放生成，BLEU / chrF 假设唯一参考答案、并不适用，故以字数对齐率、distinct 为主指标，BLEU 仅作纵向回归参考。
 
-| 上联 | 生成下联 |
-|---|---|
-| 风铃串串春摇响 | 细雨丝丝柳线垂 |
-| 衣上酒痕玫瑰紫 | 花间月色桂香浓 |
-| 平生最是相思苦 | 往事无非寂寞愁 |
+## 局限
 
-## 为什么这么选指标
-
-BLEU / chrF 假设「存在唯一参考答案」，适合翻译等答案受限的任务。而对联是**一对多**开放生成：一条上联有无数合格下联，生成结果与那唯一一条参考下联字面不重叠，**不代表质量差**。抽样里 `柳岸春风入酒樽` 这类好对，BLEU 照样接近 0。
-
-因此指标分两层：
-
-- **主指标（任务相关）**：字数对齐率（对联硬性要求上下联等长）、distinct-n（衡量多样性，防止只抄固定模板）；
-- **参考指标（回归报警）**：BLEU / chrF 仅作纵向对比的「退化报警器」，不当作质量结论。
-
-## 局限与改进方向
-
-- 尚无 LSTM / Seq2Seq 的 baseline 对照实验；
-- 无独立验证集与早停，epoch 数为人工设定；
-- 贪心解码对极短（0-5 字）和超长（16+ 字）对联的对齐偏弱；
-- generator 与目标 embedding 未做权重绑定；src / tgt embedding 独立训练（非共享）。
+- 尚无 baseline 对照实验与验证集早停；
+- generator 与目标 embedding 未做权重绑定（原论文有 tie）；
+- 贪心解码对极短（0-5 字）和超长（16+ 字）对联的对齐偏弱。
 
 ## 运行
 
@@ -78,17 +82,17 @@ python train.py      # 训练，每 epoch 存 checkpoint 到 checkpoints/
 python evaluate.py   # 评测（在 config.py 改 ckpt_path 指定 checkpoint）
 ```
 
-> 模型权重（`checkpoints/`，约 1.2GB）未上传，需先运行 `train.py` 生成。
+> 训练集（`data/train/`，约 59MB）与模型权重（`checkpoints/`，约 1.2GB）未上传。训练数据请从 [couplet-dataset](https://github.com/wb14123/couplet-dataset) 的 Releases 下载放入 `data/train/`；权重需先运行 `train.py` 生成。
 
 ## 文件结构
 
 | 文件 | 职责 |
 |---|---|
-| `input_part.py` | 词嵌入（×√d_model）+ 正弦位置编码 |
-| `encoder_element.py` | 多头注意力、前馈网络、LayerNorm、`clones` |
+| `encoder_element.py` | 多头注意力、前馈网络、LayerNorm |
+| `input_part.py` | 词嵌入、位置编码 |
 | `encoder_sublayer.py` | pre-norm 残差连接 |
 | `encoder_layer.py` / `encoder.py` | 编码器层 / 编码器 |
-| `decoder_layer.py` / `decoder.py` | 解码器层（含 cross-attention）/ 解码器 |
+| `decoder_layer.py` / `decoder.py` | 解码器层（含交叉注意力）/ 解码器 |
 | `output_part.py` | 生成器（d_model → 词表 logits） |
 | `transformer.py` | 组装 EncoderDecoder + `make_model` |
 | `train.py` | 训练循环（Noam / 标签平滑 / 梯度裁剪） |
