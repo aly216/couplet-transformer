@@ -1,16 +1,16 @@
 # 从零实现 Transformer（中文对联生成）
 
-从零实现 Transformer 序列到序列模型，不依赖 HuggingFace 等高层封装。多头注意力、位置编码、编码器 / 解码器、掩码、LayerNorm、残差连接、Noam 学习率调度均自行编写，并在「上联 → 下联」对联生成任务上验证模型能正常工作。
+从零实现 Transformer 序列到序列模型，不依赖 HuggingFace 等高层封装。多头注意力、位置编码、编码器 / 解码器、掩码、LayerNorm、残差连接、Noam 学习率调度均自行编写，并在上联 -> 下联的对联生成任务上验证模型能正常工作。
 
 ## 整体结构
 
 编码器 6 层、解码器 6 层、8 头注意力、d_model=512、d_ff=2048。
 
 ```
-输入 → 词嵌入 + 位置编码
-     → Encoder ×6（自注意力 + 前馈，各带残差 + LayerNorm）
-     → Decoder ×6（因果自注意力 + 交叉注意力 + 前馈）
-     → 线性层 → 词表 logits
+输入 -> 词嵌入 + 位置编码
+     -> Encoder ×6（自注意力 + 前馈，各带残差 + LayerNorm）
+     -> Decoder ×6（因果自注意力 + 交叉注意力 + 前馈）
+     -> 线性层 -> 词表 logits
 ```
 
 ## 核心组件
@@ -18,7 +18,7 @@
 ### 多头注意力
 
 - 4 个线性层做 Q / K / V / O 投影，8 个头，每头 d_k = 512 / 8 = 64；
-- 流程：拆头 → 注意力 → 拼头 → 输出投影。
+- 流程：拆头 -> 注意力 -> 拼头 -> 输出投影。
 
 ### 位置编码
 
@@ -26,7 +26,7 @@
 
 ### 前馈网络
 
-- `Linear(512 → 2048) → ReLU → Dropout → Linear(2048 → 512)`。
+- `Linear(512 -> 2048) -> ReLU -> Dropout -> Linear(2048 -> 512)`。
 
 ### 残差连接 + LayerNorm
 
@@ -56,7 +56,7 @@
 | BLEU-1 / 2 / 3 / 4 | 15.44 / 6.01 / 2.78 / 1.48 |
 | chrF | 3.12 |
 
-对联是「一对多」开放生成任务，BLEU / chrF 等参考式指标适用性有限，故以字数对齐率、distinct 为主要参考，BLEU 仅作纵向对比。
+对联是一对多开放生成任务，BLEU / chrF 等参考式指标适用性有限，故以字数对齐率、distinct 为主要参考，BLEU 仅作纵向对比。
 
 ## 局限
 
@@ -81,7 +81,7 @@ python evaluate.py   # 评测（在 config.py 改 ckpt_path 指定 checkpoint）
 | `encoder_sublayer.py` | pre-norm 残差连接 |
 | `encoder_layer.py` / `encoder.py` | 编码器层 / 编码器 |
 | `decoder_layer.py` / `decoder.py` | 解码器层（含交叉注意力）/ 解码器 |
-| `output_part.py` | 生成器（d_model → 词表 logits） |
+| `output_part.py` | 生成器（d_model -> 词表 logits） |
 | `transformer.py` | 组装 EncoderDecoder + `make_model` |
 | `train.py` | 训练循环 |
 | `evaluate.py` | 解码 + 指标计算 |
